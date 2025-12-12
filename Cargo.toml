@@ -1,0 +1,19 @@
+[package]
+name = "proto-plugin-wrangler"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+codegen-units = 1
+debug = false
+lto = true
+opt-level = "s"
+panic = "abort"
+
+[dependencies]
+extism-pdk = "1.4.1"
+proto_pdk = "0.32.3"
