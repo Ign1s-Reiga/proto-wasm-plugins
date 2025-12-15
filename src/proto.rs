@@ -1,6 +1,6 @@
-use crate::{NpmPackage, PrototoolsConfig, BASH_SHIMS_CONTENT, CMD_SHIMS_CONTENT};
+use crate::{NpmPackage, PackageJson, PrototoolsConfig, BASH_SHIMS_CONTENT, CMD_SHIMS_CONTENT};
 use extism_pdk::{host_fn, json, plugin_fn, FnResult, Json};
-use proto_pdk::{exec_command, fetch_text, get_host_environment, AnyResult, DetectVersionInput, DetectVersionOutput, DownloadPrebuiltInput, DownloadPrebuiltOutput, ExecCommandInput, ExecCommandOutput, ExecutableConfig, HostEnvironment, InstallHook, LoadVersionsInput, LoadVersionsOutput, LocateExecutablesInput, LocateExecutablesOutput, ParseVersionFileInput, ParseVersionFileOutput, PluginType, RegisterToolOutput, ResolveVersionInput, ResolveVersionOutput, UnresolvedVersionSpec, Version, VersionSpec, VirtualPath};
+use proto_pdk::*;
 use starbase_utils::fs;
 use std::collections::HashMap;
 
@@ -49,13 +49,29 @@ pub fn locate_executables(Json(input): Json<LocateExecutablesInput>) -> FnResult
 
 #[plugin_fn]
 pub fn post_install(Json(input): Json<InstallHook>) -> FnResult<()> {
-    exec_command!(input, ExecCommandInput {
-        command: "npm".to_string(),
-        args: vec!["install".to_string(), "--omit=dev".to_string()],
-        cwd: Some(input.context.tool_dir),
-        stream: true,
-        ..ExecCommandInput::default()
-    });
+    let content = fs::read_file(&input.context.tool_dir.join("package.json"))?;
+    // remove package.json before install packages
+    fs::remove_file(input.context.tool_dir.join("package.json"))?;
+    let dependencies = json::from_str::<PackageJson>(content.as_str())?.dependencies;
+    let tool_dir_real_path = &input.context.tool_dir
+        .real_path()
+        .unwrap()
+        .to_string_lossy()
+        .to_string();
+
+    for (name, version) in dependencies {
+        exec_command!(input, ExecCommandInput {
+            command: "npm".to_string(),
+            args: vec![
+                "install".to_string(),
+                "--prefix".to_string(),
+                tool_dir_real_path.to_string(),
+                format!("{name}@{version}")
+            ],
+            stream: true,
+            ..ExecCommandInput::default()
+        });
+    }
 
     Ok(())
 }
