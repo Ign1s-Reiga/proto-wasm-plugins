@@ -1,11 +1,13 @@
 use crate::{BASH_SHIMS_CONTENT, CMD_SHIMS_CONTENT};
-use extism_pdk::{host_fn, json, plugin_fn, Error, FnResult, Json};
+use extism_pdk::{host_fn, plugin_fn, FnResult, Json};
+use npm_registry_api::{
+    fetch_npm_registry, find_package_with_version_spec,
+    schema::NpmPackageSummary
+};
 use proto_pdk::*;
+use serde::Deserialize;
 use starbase_utils::fs;
 use std::collections::HashMap;
-use serde::Deserialize;
-use npm_registry_api::{fetch_npm_registry, find_package_with_version_spec};
-use npm_registry_api::schema::NpmPackageSummary;
 
 const NPM_REGISTRY_URL: &'static str = "https://registry.npmjs.org/wrangler";
 
