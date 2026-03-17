@@ -1,9 +1,6 @@
 use crate::{BASH_SHIMS_CONTENT, CMD_SHIMS_CONTENT};
 use extism_pdk::{host_fn, plugin_fn, FnResult, Json};
-use npm_registry_api::{
-    fetch_npm_registry, find_package_with_version_spec,
-    schema::NpmPackageSummary
-};
+use npm_registry_api::{decode_sri, fetch_npm_registry, find_package_with_version_spec, schema::NpmPackageSummary};
 use proto_pdk::*;
 use serde::Deserialize;
 use starbase_utils::fs;
@@ -36,7 +33,7 @@ pub fn download_prebuilt(Json(input): Json<DownloadPrebuiltInput>) -> FnResult<J
 
     Ok(Json(DownloadPrebuiltOutput {
         archive_prefix: Some("package".to_string()),
-        checksum: Some(Checksum::sha256(package.dist.shasum)),
+        checksum: Some(Checksum::sha512(decode_sri(package.dist.integrity)?)),
         download_url: package.dist.tarball,
         ..DownloadPrebuiltOutput::default()
     }))
@@ -59,7 +56,10 @@ pub fn locate_executables(Json(input): Json<LocateExecutablesInput>) -> FnResult
 #[plugin_fn]
 pub fn post_install(Json(input): Json<InstallHook>) -> FnResult<()> {
     let dist_meta = find_package_with_version_spec(NPM_REGISTRY_URL, &input.context.version)?;
-    let need_install: HashMap<String, String> = dist_meta.dependencies.into_iter().chain(dist_meta.peer_dependencies).collect();
+    let need_install: HashMap<String, String> = dist_meta.dependencies
+        .into_iter()
+        .chain(dist_meta.peer_dependencies.unwrap_or_default())
+        .collect();
     // remove package.json before install packages
     fs::remove_file(input.context.tool_dir.join("package.json"))?;
     let tool_dir_real_path = input.context.tool_dir

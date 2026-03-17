@@ -398,6 +398,7 @@ dependencies = [
 name = "npm-registry-api"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "extism-pdk",
  "proto_pdk",
  "serde",

@@ -12,12 +12,13 @@ pub struct NpmPackageSummary {
 pub struct NpmPackageManifest {
     pub version: String,
     pub dependencies: HashMap<String, String>,
-    pub peer_dependencies: HashMap<String, String>,
+    #[serde(rename = "peerDependencies")]
+    pub peer_dependencies: Option<HashMap<String, String>>,
     pub dist: NpmPackageDistMeta
 }
 
 #[derive(Deserialize)]
 pub struct NpmPackageDistMeta {
-    pub shasum: String,
+    pub integrity: String,
     pub tarball: String,
 }

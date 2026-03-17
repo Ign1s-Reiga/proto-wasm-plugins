@@ -12,3 +12,4 @@ crate-type = ["lib"]
 extism-pdk = { workspace = true }
 proto_pdk = { workspace = true }
 serde = { workspace = true }
+base64 = { workspace = true }

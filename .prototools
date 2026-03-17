@@ -1,0 +1,2 @@
+# [plugins.tools]
+# wrangler-test = "file://./target/wasm32-wasip1/release/wrangler_tool.wasm"
