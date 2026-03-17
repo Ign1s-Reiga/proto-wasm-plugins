@@ -1,5 +1,5 @@
-use crate::{NpmPackage, PackageJson, PrototoolsConfig, BASH_SHIMS_CONTENT, CMD_SHIMS_CONTENT};
-use extism_pdk::{host_fn, json, plugin_fn, FnResult, Json};
+use crate::{NpmPackageManifest, NpmPackageSummary, PrototoolsConfig, BASH_SHIMS_CONTENT, CMD_SHIMS_CONTENT};
+use extism_pdk::{host_fn, json, plugin_fn, Error, FnResult, Json};
 use proto_pdk::*;
 use starbase_utils::fs;
 use std::collections::HashMap;
@@ -12,6 +12,7 @@ extern "ExtismHost" {
 #[plugin_fn]
 pub fn register_tool(_: ()) -> FnResult<Json<RegisterToolOutput>> {
     Ok(Json(RegisterToolOutput {
+        default_version: Some(UnresolvedVersionSpec::parse("latest")?),
         name: "Wrangler".to_string(),
         type_of: PluginType::CommandLine,
         minimum_proto_version: Some(Version::new(0, 50, 0)),
@@ -24,11 +25,12 @@ pub fn register_tool(_: ()) -> FnResult<Json<RegisterToolOutput>> {
 #[plugin_fn]
 pub fn download_prebuilt(Json(input): Json<DownloadPrebuiltInput>) -> FnResult<Json<DownloadPrebuiltOutput>> {
     let version = input.context.version;
-    let filename = format!("wrangler-{version}.tgz");
+    let package = find_package_with_version_spec(&version)?;
 
     Ok(Json(DownloadPrebuiltOutput {
         archive_prefix: Some("package".to_string()),
-        download_url: format!("https://registry.npmjs.org/wrangler/-/{filename}"),
+        checksum: Some(Checksum::sha256(package.dist.shasum)),
+        download_url: package.dist.tarball,
         ..DownloadPrebuiltOutput::default()
     }))
 }
@@ -49,29 +51,30 @@ pub fn locate_executables(Json(input): Json<LocateExecutablesInput>) -> FnResult
 
 #[plugin_fn]
 pub fn post_install(Json(input): Json<InstallHook>) -> FnResult<()> {
-    let content = fs::read_file(&input.context.tool_dir.join("package.json"))?;
+    let dist_meta = find_package_with_version_spec(&input.context.version)?;
+    let need_install: HashMap<String, String> = dist_meta.dependencies.into_iter().chain(dist_meta.peer_dependencies).collect();
     // remove package.json before install packages
     fs::remove_file(input.context.tool_dir.join("package.json"))?;
-    let dependencies = json::from_str::<PackageJson>(content.as_str())?.dependencies;
-    let tool_dir_real_path = &input.context.tool_dir
+    let tool_dir_real_path = input.context.tool_dir
         .real_path()
         .unwrap()
         .to_string_lossy()
         .to_string();
 
-    for (name, version) in dependencies {
-        exec_command!(input, ExecCommandInput {
-            command: "npm".to_string(),
-            args: vec![
-                "install".to_string(),
-                "--prefix".to_string(),
-                tool_dir_real_path.to_string(),
-                format!("{name}@{version}")
-            ],
-            stream: true,
-            ..ExecCommandInput::default()
-        });
-    }
+    let mut args = vec![
+        "install".to_string(),
+        "--prefix".to_string(),
+        tool_dir_real_path,
+    ];
+
+    args.extend(need_install.into_iter().map(|(k, v)| format!("{k}@{v}")));
+
+    exec_command!(input, ExecCommandInput {
+        command: "npm".to_string(),
+        args,
+        stream: true,
+        ..ExecCommandInput::default()
+    });
 
     Ok(())
 }
@@ -79,7 +82,7 @@ pub fn post_install(Json(input): Json<InstallHook>) -> FnResult<()> {
 #[plugin_fn]
 pub fn load_versions(Json(_): Json<LoadVersionsInput>) -> FnResult<Json<LoadVersionsOutput>> {
     let mut output = LoadVersionsOutput::default();
-    let rsp: NpmPackage = json::from_str(&fetch_text("https://registry.npmjs.org/wrangler")?)?;
+    let rsp: NpmPackageSummary = fetch_npm_registry()?;
 
     for item in rsp.versions.values() {
         output.versions.push(VersionSpec::parse(&item.version)?);
@@ -94,12 +97,6 @@ pub fn load_versions(Json(_): Json<LoadVersionsInput>) -> FnResult<Json<LoadVers
     Ok(Json(output))
 }
 
-// TODO: resolve aliases
-#[plugin_fn]
-pub fn resolve_version(Json(_): Json<ResolveVersionInput>) -> FnResult<Json<ResolveVersionOutput>> {
-    Ok(Json(ResolveVersionOutput::default()))
-}
-
 #[plugin_fn]
 pub fn detect_version_files(_: Json<DetectVersionInput>) -> FnResult<Json<DetectVersionOutput>> {
     Ok(Json(DetectVersionOutput {
@@ -110,17 +107,15 @@ pub fn detect_version_files(_: Json<DetectVersionInput>) -> FnResult<Json<Detect
 
 #[plugin_fn]
 pub fn parse_version_file(Json(input): Json<ParseVersionFileInput>) -> FnResult<Json<ParseVersionFileOutput>> {
-    let mut version = None;
-
-    if input.file == ".prototools" {
+    let version = if input.file == ".prototools" {
         // parse as toml
-        version = match toml::from_str::<PrototoolsConfig>(input.content.as_str()) {
-            Ok(prototools) => UnresolvedVersionSpec::parse(prototools.wrangler).ok(),
+        match toml::from_str::<PrototoolsConfig>(input.content.as_str()) {
+            Ok(config) => UnresolvedVersionSpec::parse(config.wrangler).ok(),
             Err(_) => None,
-        };
+        }
     } else {
-        version = UnresolvedVersionSpec::parse(input.content.trim()).ok();
-    }
+        UnresolvedVersionSpec::parse(input.content.trim()).ok()
+    };
 
     Ok(Json(ParseVersionFileOutput { version }))
 }
@@ -132,4 +127,29 @@ fn create_shim(env: &HostEnvironment, install_dir: &VirtualPath, filename: &str)
     )?;
 
     Ok(())
+}
+
+fn fetch_npm_registry() -> AnyResult<NpmPackageSummary> {
+    let rsp: NpmPackageSummary = json::from_str(&fetch_text("https://registry.npmjs.org/wrangler")?)?;
+    Ok(rsp)
+}
+
+fn find_package_with_version_spec(version: &VersionSpec) -> AnyResult<NpmPackageManifest> {
+    let mut summary = fetch_npm_registry()?;
+    let version_string = match version {
+        VersionSpec::Alias(alias) => summary
+            .dist_tags
+            .get(alias.as_str())
+            .cloned()
+            .ok_or_else(|| Error::msg(format!("Unknown alias {alias}")))?,
+        _ => version.to_string(),
+    };
+
+    if let Some(package) = summary.versions.remove(&version_string) {
+        Ok(package)
+    } else {
+        Err(Error::msg(format!(
+            "No package found matching the requested version: {version_string}"
+        )))
+    }
 }

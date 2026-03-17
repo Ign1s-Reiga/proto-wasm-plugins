@@ -1,0 +1,54 @@
+name: Build & Release
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches: ['main']
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' && github.ref_type == 'tag' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: wasm32-wasip1
+          cache-all-crates: true
+      - name: Install wabt
+        run: |
+          sudo apt update & sudo apt install -y wabt
+      - name: Install binaryen
+        run: |
+          curl -fsSL https://github.com/WebAssembly/binaryen/releases/download/version_128/binaryen-version_128-x86_64-linux.tar.gz | tar xz -C /tmp
+          echo "/tmp/binaryen-version_128/bin" >> $GITHUB_PATH
+      - name: Build WASM
+        run: cargo build --target wasm32-wasip1 --release
+      - name: Optimize and Strip
+        run: |
+          INPUT_PATH=target/wasm32-wasip1/release/wrangler_tool.wasm
+          OUTPUT_PATH=out/wrangler_tool.wasm
+          mkdir -p out
+          wasm-opt -Os "${INPUT_PATH}" -o "${OUTPUT_PATH}"
+          wasm-strip "${OUTPUT_PATH}"
+          echo "WASM_PATH=${OUTPUT_PATH}" >> $GITHUB_ENV
+      - name: Generate SHA256 Checksum
+        run: |
+          sha256sum "${WASM_PATH}" > "${WASM_PATH}.sha256"
+      - name: Draft Release
+        uses: release-drafter/release-drafter@v7
+        id: release-drafter
+      - name: Release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: out/*
+          artifactErrorsFailBuild: true
+          body: ${{ steps.release-drafter.outputs.body }}
+          skipIfReleaseExists: true

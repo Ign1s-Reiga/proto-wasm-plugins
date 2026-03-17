@@ -1,7 +1,8 @@
 [package]
-name = "proto_plugin_wrangler"
+name = "wrangler_tool"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 publish = false
 
 [lib]
@@ -16,12 +17,7 @@ panic = "abort"
 
 [dependencies]
 extism-pdk = "1.4.1"
-proto_pdk = "0.32.3"
+proto_pdk = "0.32"
 serde = { version = "1.0.228", features = ["derive"] }
-starbase_utils = { version = "0.12.3", default-features = false }
-toml = "0.9.8"
-
-[dev-dependencies]
-proto_pdk_test_utils = "0.42.1"
-starbase_sandbox = "0.10.3"
-tokio = { version = "1.48.0", default-features = false }
+starbase_utils = { version = "0.12", default-features = false }
+toml = "1.0"
