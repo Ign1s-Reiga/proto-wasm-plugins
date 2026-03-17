@@ -21,8 +21,3 @@ pub struct NpmPackageDistMeta {
     pub shasum: String,
     pub tarball: String,
 }
-
-#[derive(Deserialize)]
-pub struct PrototoolsConfig {
-    pub wrangler: String,
-}

@@ -395,6 +395,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "npm-registry-api"
+version = "0.1.0"
+dependencies = [
+ "extism-pdk",
+ "proto_pdk",
+ "serde",
+]
+
+[[package]]
 name = "num-traits"
 version = "0.2.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1000,6 +1009,7 @@ name = "wrangler_tool"
 version = "0.1.0"
 dependencies = [
  "extism-pdk",
+ "npm-registry-api",
  "proto_pdk",
  "serde",
  "starbase_utils",

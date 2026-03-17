@@ -1,8 +1,13 @@
-use crate::{NpmPackageManifest, NpmPackageSummary, PrototoolsConfig, BASH_SHIMS_CONTENT, CMD_SHIMS_CONTENT};
+use crate::{BASH_SHIMS_CONTENT, CMD_SHIMS_CONTENT};
 use extism_pdk::{host_fn, json, plugin_fn, Error, FnResult, Json};
 use proto_pdk::*;
 use starbase_utils::fs;
 use std::collections::HashMap;
+use serde::Deserialize;
+use npm_registry_api::{fetch_npm_registry, find_package_with_version_spec};
+use npm_registry_api::schema::NpmPackageSummary;
+
+const NPM_REGISTRY_URL: &'static str = "https://registry.npmjs.org/wrangler";
 
 #[host_fn]
 extern "ExtismHost" {
@@ -25,7 +30,7 @@ pub fn register_tool(_: ()) -> FnResult<Json<RegisterToolOutput>> {
 #[plugin_fn]
 pub fn download_prebuilt(Json(input): Json<DownloadPrebuiltInput>) -> FnResult<Json<DownloadPrebuiltOutput>> {
     let version = input.context.version;
-    let package = find_package_with_version_spec(&version)?;
+    let package = find_package_with_version_spec(NPM_REGISTRY_URL, &version)?;
 
     Ok(Json(DownloadPrebuiltOutput {
         archive_prefix: Some("package".to_string()),
@@ -51,7 +56,7 @@ pub fn locate_executables(Json(input): Json<LocateExecutablesInput>) -> FnResult
 
 #[plugin_fn]
 pub fn post_install(Json(input): Json<InstallHook>) -> FnResult<()> {
-    let dist_meta = find_package_with_version_spec(&input.context.version)?;
+    let dist_meta = find_package_with_version_spec(NPM_REGISTRY_URL, &input.context.version)?;
     let need_install: HashMap<String, String> = dist_meta.dependencies.into_iter().chain(dist_meta.peer_dependencies).collect();
     // remove package.json before install packages
     fs::remove_file(input.context.tool_dir.join("package.json"))?;
@@ -82,7 +87,7 @@ pub fn post_install(Json(input): Json<InstallHook>) -> FnResult<()> {
 #[plugin_fn]
 pub fn load_versions(Json(_): Json<LoadVersionsInput>) -> FnResult<Json<LoadVersionsOutput>> {
     let mut output = LoadVersionsOutput::default();
-    let rsp: NpmPackageSummary = fetch_npm_registry()?;
+    let rsp: NpmPackageSummary = fetch_npm_registry(NPM_REGISTRY_URL)?;
 
     for item in rsp.versions.values() {
         output.versions.push(VersionSpec::parse(&item.version)?);
@@ -129,27 +134,7 @@ fn create_shim(env: &HostEnvironment, install_dir: &VirtualPath, filename: &str)
     Ok(())
 }
 
-fn fetch_npm_registry() -> AnyResult<NpmPackageSummary> {
-    let rsp: NpmPackageSummary = json::from_str(&fetch_text("https://registry.npmjs.org/wrangler")?)?;
-    Ok(rsp)
-}
-
-fn find_package_with_version_spec(version: &VersionSpec) -> AnyResult<NpmPackageManifest> {
-    let mut summary = fetch_npm_registry()?;
-    let version_string = match version {
-        VersionSpec::Alias(alias) => summary
-            .dist_tags
-            .get(alias.as_str())
-            .cloned()
-            .ok_or_else(|| Error::msg(format!("Unknown alias {alias}")))?,
-        _ => version.to_string(),
-    };
-
-    if let Some(package) = summary.versions.remove(&version_string) {
-        Ok(package)
-    } else {
-        Err(Error::msg(format!(
-            "No package found matching the requested version: {version_string}"
-        )))
-    }
+#[derive(Deserialize)]
+pub struct PrototoolsConfig {
+    pub wrangler: String,
 }
