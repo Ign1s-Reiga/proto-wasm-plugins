@@ -38,9 +38,9 @@ jobs:
       - name: Optimize and Strip
         run: |
           input_path="target/wasm32-wasip1/release/${PROJECT_NAME}.wasm"
-          input_path="out/${PROJECT_NAME}.wasm"
+          output_path="out/${PROJECT_NAME}.wasm"
           mkdir -p out
-          wasm-opt -Os "$input_path" -o "$output_path
+          wasm-opt -Os "$input_path" -o "$output_path"
           wasm-strip "$output_path"
           echo "WASM_PATH=$output_path" >> $GITHUB_ENV
       - name: Generate SHA256 Checksum
