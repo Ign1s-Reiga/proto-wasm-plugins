@@ -2,7 +2,6 @@ use crate::{BASH_SHIMS_CONTENT, CMD_SHIMS_CONTENT};
 use extism_pdk::{host_fn, plugin_fn, FnResult, Json};
 use npm_registry_api::{decode_sri, fetch_npm_registry, find_package_with_version_spec, schema::NpmPackageSummary};
 use proto_pdk::*;
-use serde::Deserialize;
 use starbase_utils::fs;
 use std::collections::HashMap;
 
@@ -104,29 +103,6 @@ pub fn load_versions(Json(_): Json<LoadVersionsInput>) -> FnResult<Json<LoadVers
     Ok(Json(output))
 }
 
-#[plugin_fn]
-pub fn detect_version_files(_: Json<DetectVersionInput>) -> FnResult<Json<DetectVersionOutput>> {
-    Ok(Json(DetectVersionOutput {
-        files: vec![".prototools".to_string()],
-        ..DetectVersionOutput::default()
-    }))
-}
-
-#[plugin_fn]
-pub fn parse_version_file(Json(input): Json<ParseVersionFileInput>) -> FnResult<Json<ParseVersionFileOutput>> {
-    let version = if input.file == ".prototools" {
-        // parse as toml
-        match toml::from_str::<PrototoolsConfig>(input.content.as_str()) {
-            Ok(config) => UnresolvedVersionSpec::parse(config.wrangler).ok(),
-            Err(_) => None,
-        }
-    } else {
-        UnresolvedVersionSpec::parse(input.content.trim()).ok()
-    };
-
-    Ok(Json(ParseVersionFileOutput { version }))
-}
-
 fn create_shim(env: &HostEnvironment, install_dir: &VirtualPath, filename: &str) -> AnyResult<()> {
     fs::write_file(
         install_dir.join("shims").join(filename),
@@ -134,9 +110,4 @@ fn create_shim(env: &HostEnvironment, install_dir: &VirtualPath, filename: &str)
     )?;
 
     Ok(())
-}
-
-#[derive(Deserialize)]
-pub struct PrototoolsConfig {
-    pub wrangler: String,
 }

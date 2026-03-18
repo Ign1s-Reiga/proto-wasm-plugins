@@ -7,7 +7,6 @@ extism-pdk = "1.4.1"
 proto_pdk = "0.32"
 serde = { version = "1.0.228", features = ["derive"] }
 starbase_utils = { version = "0.12", default-features = false }
-toml = "1.0"
 base64 = "0.22"
 npm-registry-api = { path = "crates/npm-registry-api" }
 
