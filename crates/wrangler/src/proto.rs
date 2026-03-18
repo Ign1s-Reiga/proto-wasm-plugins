@@ -1,4 +1,4 @@
-use crate::{BASH_SHIMS_CONTENT, CMD_SHIMS_CONTENT};
+use crate::{BASH_SCRIPT_CONTENT, CMD_SCRIPT_CONTENT};
 use extism_pdk::{host_fn, plugin_fn, FnResult, Json};
 use npm_registry_api::{decode_sri, fetch_npm_registry, find_package_with_version_spec, schema::NpmPackageSummary};
 use proto_pdk::*;
@@ -42,12 +42,12 @@ pub fn download_prebuilt(Json(input): Json<DownloadPrebuiltInput>) -> FnResult<J
 pub fn locate_executables(Json(input): Json<LocateExecutablesInput>) -> FnResult<Json<LocateExecutablesOutput>> {
     let env = get_host_environment()?;
     let filename = if env.os.is_windows() { "wrangler.cmd" } else { "wrangler" };
-    if !input.install_dir.join("shims").exists() {
-        create_shim(&env, &input.install_dir, filename)?;
+    if !input.install_dir.join("script").exists() {
+        create_script_file(&env, &input.install_dir, filename)?;
     }
 
     Ok(Json(LocateExecutablesOutput {
-        exes: HashMap::from_iter([("wrangler".to_string(), ExecutableConfig::new_primary(format!("shims/{filename}")))]),
+        exes: HashMap::from_iter([("wrangler".to_string(), ExecutableConfig::new_primary(format!("script/{filename}")))]),
         ..LocateExecutablesOutput::default()
     }))
 }
@@ -103,10 +103,10 @@ pub fn load_versions(Json(_): Json<LoadVersionsInput>) -> FnResult<Json<LoadVers
     Ok(Json(output))
 }
 
-fn create_shim(env: &HostEnvironment, install_dir: &VirtualPath, filename: &str) -> AnyResult<()> {
+fn create_script_file(env: &HostEnvironment, install_dir: &VirtualPath, filename: &str) -> AnyResult<()> {
     fs::write_file(
-        install_dir.join("shims").join(filename),
-        if env.os.is_windows() { CMD_SHIMS_CONTENT } else { BASH_SHIMS_CONTENT }
+        install_dir.join("script").join(filename),
+        if env.os.is_windows() { CMD_SCRIPT_CONTENT } else { BASH_SCRIPT_CONTENT }
     )?;
 
     Ok(())

@@ -1,5 +1,5 @@
-pub const CMD_SHIMS_CONTENT: &str = r##"@goto #_undefined_# 2>NUL || @title %COMSPEC% & @setlocal & node "%~dp0\..\bin\wrangler.js" %*"##;
-pub const BASH_SHIMS_CONTENT: &str = r##"
+pub const CMD_SCRIPT_CONTENT: &str = r##"@goto #_undefined_# 2>NUL || @title %COMSPEC% & @setlocal & node "%~dp0\..\bin\wrangler.js" %*"##;
+pub const BASH_SCRIPT_CONTENT: &str = r##"
 #!/usr/bin/env bash
 basedir=$(dirname "$0")
 

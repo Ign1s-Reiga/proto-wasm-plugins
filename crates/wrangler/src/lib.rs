@@ -1,5 +1,5 @@
 mod proto;
-mod shims;
+mod script;
 
 pub use proto::*;
-pub use shims::*;
+pub use script::*;
