@@ -6,29 +6,12 @@ use crate::schema::{NpmPackageManifest, NpmPackageSummary};
 
 pub mod schema;
 
-pub fn fetch_npm_registry(url: &'static str) -> AnyResult<NpmPackageSummary> {
-    let rsp: NpmPackageSummary = json::from_str(&fetch_text(url)?)?;
-    Ok(rsp)
+pub fn fetch_npm_registry<S: AsRef<str>>(url: S) -> AnyResult<NpmPackageSummary> {
+    Ok(json::from_str::<NpmPackageSummary>(&fetch_text(url)?)?)
 }
 
-pub fn find_package_with_version_spec(url: &'static str, version: &VersionSpec) -> AnyResult<NpmPackageManifest> {
-    let mut summary = fetch_npm_registry(url)?;
-    let version_string = match version {
-        VersionSpec::Alias(alias) => summary
-            .dist_tags
-            .get(alias.as_str())
-            .cloned()
-            .ok_or_else(|| Error::msg(format!("Unknown alias {alias}")))?,
-        _ => version.to_string(),
-    };
-
-    if let Some(package) = summary.versions.remove(&version_string) {
-        Ok(package)
-    } else {
-        Err(Error::msg(format!(
-            "No package found matching the requested version: {version_string}"
-        )))
-    }
+pub fn fetch_package_manifest<S: AsRef<str>>(url: S, version: &VersionSpec) -> AnyResult<NpmPackageManifest> {
+    Ok(json::from_str::<NpmPackageManifest>(&fetch_text(format!("{}/{}", url.as_ref(), version.to_string()))?)?)
 }
 
 pub fn decode_sri(sri: String) -> AnyResult<String> {

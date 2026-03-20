@@ -1,6 +1,6 @@
 use crate::{BASH_SCRIPT_CONTENT, CMD_SCRIPT_CONTENT};
 use extism_pdk::{host_fn, plugin_fn, FnResult, Json};
-use npm_registry_api::{decode_sri, fetch_npm_registry, find_package_with_version_spec, schema::NpmPackageSummary};
+use npm_registry_api::{decode_sri, fetch_npm_registry, fetch_package_manifest, schema::NpmPackageSummary};
 use proto_pdk::*;
 use starbase_utils::fs;
 use std::collections::HashMap;
@@ -27,13 +27,12 @@ pub fn register_tool(_: ()) -> FnResult<Json<RegisterToolOutput>> {
 
 #[plugin_fn]
 pub fn download_prebuilt(Json(input): Json<DownloadPrebuiltInput>) -> FnResult<Json<DownloadPrebuiltOutput>> {
-    let version = input.context.version;
-    let package = find_package_with_version_spec(NPM_REGISTRY_URL, &version)?;
+    let manifest = fetch_package_manifest(NPM_REGISTRY_URL, &input.context.version)?;
 
     Ok(Json(DownloadPrebuiltOutput {
         archive_prefix: Some("package".to_string()),
-        checksum: Some(Checksum::sha512(decode_sri(package.dist.integrity)?)),
-        download_url: package.dist.tarball,
+        checksum: Some(Checksum::sha512(decode_sri(manifest.dist.integrity)?)),
+        download_url: manifest.dist.tarball,
         ..DownloadPrebuiltOutput::default()
     }))
 }
@@ -54,8 +53,8 @@ pub fn locate_executables(Json(input): Json<LocateExecutablesInput>) -> FnResult
 
 #[plugin_fn]
 pub fn post_install(Json(input): Json<InstallHook>) -> FnResult<()> {
-    let dist_meta = find_package_with_version_spec(NPM_REGISTRY_URL, &input.context.version)?;
-    let need_install: HashMap<String, String> = dist_meta.dependencies
+    let dist_meta = fetch_package_manifest(NPM_REGISTRY_URL, &input.context.version)?;
+    let need_install: HashMap<String, String> = dist_meta.dependencies.unwrap_or_default()
         .into_iter()
         .chain(dist_meta.peer_dependencies.unwrap_or_default())
         .collect();

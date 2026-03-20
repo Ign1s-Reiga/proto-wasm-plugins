@@ -919,6 +919,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "vite_plus_tool"
+version = "0.1.0"
+dependencies = [
+ "extism-pdk",
+ "npm-registry-api",
+ "proto_pdk",
+ "starbase_utils",
+]
+
+[[package]]
 name = "warpgate_api"
 version = "0.17.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

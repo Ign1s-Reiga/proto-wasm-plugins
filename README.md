@@ -4,9 +4,10 @@ WASM plugins for [proto](https://github.com/moonrepo/proto).
 
 ## Plugin List
 
-| Project Name  | Project Path    | Plugin ID |
-|---------------|-----------------|-----------|
-| wrangler_tool | crates/wrangler | wrangler  |
+| Project Name   | Project Path     | Plugin ID |
+|----------------|------------------|-----------|
+| wrangler_tool  | crates/wrangler  | wrangler  |
+| vite_plus_tool | crates/vite-plus | vite-plus |
 
 ## Installation
 

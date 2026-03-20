@@ -11,7 +11,7 @@ pub struct NpmPackageSummary {
 #[derive(Deserialize)]
 pub struct NpmPackageManifest {
     pub version: String,
-    pub dependencies: HashMap<String, String>,
+    pub dependencies: Option<HashMap<String, String>>,
     #[serde(rename = "peerDependencies")]
     pub peer_dependencies: Option<HashMap<String, String>>,
     pub dist: NpmPackageDistMeta

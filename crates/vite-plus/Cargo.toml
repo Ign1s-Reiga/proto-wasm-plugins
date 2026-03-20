@@ -1,0 +1,15 @@
+[package]
+name = "vite_plus_tool"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+extism-pdk = { workspace = true }
+proto_pdk = { workspace = true }
+starbase_utils = { workspace = true }
+npm-registry-api = { workspace = true }
