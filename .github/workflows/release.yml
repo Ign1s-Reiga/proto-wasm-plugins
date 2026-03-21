@@ -64,14 +64,26 @@ jobs:
             if (target) {
               console.log(`Matched Release: ${target.tag_name} (ID: ${target.id})`);
               core.setOutput("tag_name", target.tag_name);
+              core.setOutput("prev_is_exists", true);
             } else {
-              core.setFailed(`No release found matching pattern: ${prefix}-v*.*.*`);
+              console.log(`No release found matching pattern: ${prefix}-v*.*.*`);
+              core.setOutput("tag_name", "");
+              core.setOutput("prev_is_exists", false);
             }
+      - name: Initial Release
+        if: ${{ steps.previous-tag.outputs.prev_is_exists == 'false' }}
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: out/*
+          artifactErrorsFailBuild: true
+          generateReleaseNotes: true
+          skipIfReleaseExists: true
       - name: Release
+        if: ${{ steps.previous-tag.outputs.prev_is_exists == 'true' }}
         uses: ncipollo/release-action@v1
         with:
           artifacts: out/*
           artifactErrorsFailBuild: true
           generateReleaseNotes: true
           generateReleaseNotesPreviousTag: ${{ steps.previous-tag.outputs.tag_name }}
-          skipIfReleaseExists: true
+          skipIfReleaseExists: false
