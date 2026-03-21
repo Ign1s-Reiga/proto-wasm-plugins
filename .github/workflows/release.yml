@@ -46,13 +46,32 @@ jobs:
       - name: Generate SHA256 Checksum
         run: |
           sha256sum "$WASM_PATH" > "${WASM_PATH}.sha256"
-      - name: Prepare Release Notes
-        uses: release-drafter/release-drafter@v7
-        id: release-drafter
+      - name: Get Previous Tag
+        uses: actions/github-script@v8
+        id: previous-tag
+        with:
+          script: |
+            const prefix = process.env.PROJECT_NAME;
+            const regex = new RegExp(`^${prefix}-v\\d+\\.\\d+\\.\\d+$`);
+
+            const { data: releases } = await github.rest.repos.listReleases({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+
+            const target = releases.find(r => !r.draft && regex.test(r.tag_name));
+
+            if (target) {
+              console.log(`Matched Release: ${target.tag_name} (ID: ${target.id})`);
+              core.setOutput("tag_name", target.tag_name);
+            } else {
+              core.setFailed(`No release found matching pattern: ${prefix}-v*.*.*`);
+            }
       - name: Release
         uses: ncipollo/release-action@v1
         with:
           artifacts: out/*
           artifactErrorsFailBuild: true
-          body: ${{ steps.release-drafter.outputs.body }}
+          generateReleaseNotes: true
+          generateReleaseNotesPreviousTag: ${{ steps.previous-tag.outputs.tag_name }}
           skipIfReleaseExists: true
