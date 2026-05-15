@@ -239,10 +239,7 @@ pub fn unpack_archive(Json(input): Json<UnpackArchiveInput>) -> FnResult<()> {
 
     let vendor_root = input.output_dir.join("vendor");
     if vendor_root.exists() {
-        let vendor_root_path = vendor_root
-            .real_path()
-            .ok_or_else(|| Error::msg("Cannot resolve vendor dir"))?;
-        std::fs::remove_dir_all(vendor_root_path)?;
+        fs::remove_dir_all(vendor_root)?;
     }
 
     Ok(())
