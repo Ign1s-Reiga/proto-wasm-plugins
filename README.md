@@ -8,6 +8,8 @@ WASM plugins for [proto](https://github.com/moonrepo/proto).
 |----------------|------------------|-----------|
 | wrangler_tool  | crates/wrangler  | wrangler  |
 | vite_plus_tool | crates/vite-plus | vite-plus |
+| codex_tool     | crates/codex     | codex     |
+
 
 ## Installation
 
