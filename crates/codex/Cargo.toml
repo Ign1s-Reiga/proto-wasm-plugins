@@ -1,6 +1,6 @@
 [package]
-name = "wrangler_tool"
-version = "0.1.1"
+name = "codex_tool"
+version = "0.1.0"
 edition = "2024"
 license = "MIT"
 publish = false
@@ -11,5 +11,9 @@ crate-type = ["cdylib"]
 [dependencies]
 extism-pdk.workspace = true
 proto_pdk.workspace = true
+serde.workspace = true
 starbase_utils.workspace = true
-npm-registry-api.workspace = true
+
+[dev-dependencies]
+proto_pdk_test_utils.workspace = true
+tokio = { version = "1", features = ["full"] }

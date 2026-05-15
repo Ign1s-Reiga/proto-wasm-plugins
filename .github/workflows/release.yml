@@ -76,7 +76,10 @@ jobs:
         with:
           artifacts: out/*
           artifactErrorsFailBuild: true
-          generateReleaseNotes: true
+          body: |
+            ## What's Changed
+            
+            Initial Release
           skipIfReleaseExists: true
       - name: Release
         if: ${{ steps.previous-tag.outputs.prev_is_exists == 'true' }}

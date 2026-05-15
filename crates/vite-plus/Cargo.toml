@@ -9,7 +9,7 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-extism-pdk = { workspace = true }
-proto_pdk = { workspace = true }
-starbase_utils = { workspace = true }
-npm-registry-api = { workspace = true }
+extism-pdk.workspace = true
+proto_pdk.workspace = true
+starbase_utils.workspace = true
+npm-registry-api.workspace = true

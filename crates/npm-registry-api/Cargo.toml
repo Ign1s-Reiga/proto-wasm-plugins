@@ -9,7 +9,7 @@ publish = false
 crate-type = ["lib"]
 
 [dependencies]
-extism-pdk = { workspace = true }
-proto_pdk = { workspace = true }
-serde = { workspace = true }
-base64 = { workspace = true }
+extism-pdk.workspace = true
+proto_pdk.workspace = true
+serde.workspace = true
+base64.workspace = true

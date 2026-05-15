@@ -5,8 +5,9 @@ members = ["crates/*"]
 [workspace.dependencies]
 extism-pdk = "1.4.1"
 proto_pdk = "0.32"
+proto_pdk_test_utils = "0.45"
 serde = { version = "1.0.228", features = ["derive"] }
-starbase_utils = "0.12"
+starbase_utils = "0.13"
 base64 = "0.22"
 npm-registry-api = { path = "crates/npm-registry-api" }
 
