@@ -204,9 +204,13 @@ pub fn unpack_archive(Json(input): Json<UnpackArchiveInput>) -> FnResult<()> {
     if env.os.is_windows() {
         for (src_rel, dst_rel) in [
             ("codex/codex.exe", "codex.exe"),
+            ("bin/codex.exe", "codex.exe"),
             ("codex/codex-command-runner.exe", "codex-resources/codex-command-runner.exe"),
+            ("codex-resources/codex-command-runner.exe", "codex-resources/codex-command-runner.exe"),
             ("codex/codex-windows-sandbox-setup.exe", "codex-resources/codex-windows-sandbox-setup.exe"),
+            ("codex-resources/codex-windows-sandbox-setup.exe", "codex-resources/codex-windows-sandbox-setup.exe"),
             ("path/rg.exe", "codex-resources/rg.exe"),
+            ("codex-path/rg.exe", "codex-resources/rg.exe"),
         ] {
             let src = vendor.join(src_rel);
             if src.exists() {
