@@ -1,8 +1,9 @@
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use extism_pdk::{json, Error};
-use proto_pdk::{fetch_text, AnyResult, VersionSpec};
+use proto_pdk::{fetch_text, AnyResult};
 use crate::schema::{NpmPackageManifest, NpmPackageSummary};
+use std::fmt::Display;
 
 pub mod schema;
 
@@ -10,8 +11,11 @@ pub fn fetch_npm_registry<S: AsRef<str>>(url: S) -> AnyResult<NpmPackageSummary>
     Ok(json::from_str::<NpmPackageSummary>(&fetch_text(url)?)?)
 }
 
-pub fn fetch_package_manifest<S: AsRef<str>>(url: S, version: &VersionSpec) -> AnyResult<NpmPackageManifest> {
-    Ok(json::from_str::<NpmPackageManifest>(&fetch_text(format!("{}/{}", url.as_ref(), version.to_string()))?)?)
+pub fn fetch_package_manifest<S: AsRef<str>, V: Display>(url: S, version: V) -> AnyResult<NpmPackageManifest> {
+    let text = fetch_text(format!("{}/{}", url.as_ref(), version))
+        .map_err(|e| Error::msg(format!("Failed to fetch package manifest for version {version}: {e}")))?;
+    json::from_str::<NpmPackageManifest>(&text)
+        .map_err(|e| Error::msg(format!("Invalid package manifest for version {version}: {e}")))
 }
 
 pub fn decode_sri(sri: String) -> AnyResult<String> {

@@ -54,12 +54,18 @@ jobs:
             const prefix = process.env.PROJECT_NAME;
             const regex = new RegExp(`^${prefix}-v\\d+\\.\\d+\\.\\d+$`);
 
-            const { data: releases } = await github.rest.repos.listReleases({
+            // Releases of all plugins share one list, so page through it
+            // until the most recent release of this plugin is found.
+            let target;
+            for await (const { data: releases } of github.paginate.iterator(github.rest.repos.listReleases, {
               owner: context.repo.owner,
               repo: context.repo.repo,
-            });
-
-            const target = releases.find(r => !r.draft && regex.test(r.tag_name));
+              per_page: 100,
+            })) {
+              // Skip the release of the current tag, which exists when the workflow is re-run.
+              target = releases.find(r => !r.draft && r.tag_name !== process.env.GITHUB_REF_NAME && regex.test(r.tag_name));
+              if (target) break;
+            }
 
             if (target) {
               console.log(`Matched Release: ${target.tag_name} (ID: ${target.id})`);
@@ -90,3 +96,4 @@ jobs:
           generateReleaseNotes: true
           generateReleaseNotesPreviousTag: ${{ steps.previous-tag.outputs.tag_name }}
           skipIfReleaseExists: false
+          allowUpdates: true

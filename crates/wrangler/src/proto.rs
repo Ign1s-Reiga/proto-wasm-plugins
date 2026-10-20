@@ -1,5 +1,5 @@
 use crate::{BASH_SCRIPT_CONTENT, CMD_SCRIPT_CONTENT};
-use extism_pdk::{host_fn, plugin_fn, FnResult, Json};
+use extism_pdk::{host_fn, plugin_fn, Error, FnResult, Json};
 use npm_registry_api::{decode_sri, fetch_npm_registry, fetch_package_manifest, schema::NpmPackageSummary};
 use proto_pdk::*;
 use starbase_utils::fs;
@@ -62,7 +62,7 @@ pub fn post_install(Json(input): Json<InstallHook>) -> FnResult<()> {
     fs::remove_file(input.context.tool_dir.join("package.json"))?;
     let tool_dir_real_path = input.context.tool_dir
         .to_real_path()?
-        .unwrap()
+        .ok_or_else(|| Error::msg("Couldn't get tool dir path"))?
         .to_string_lossy()
         .to_string();
 

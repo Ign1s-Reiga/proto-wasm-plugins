@@ -1,31 +1,18 @@
-use extism_pdk::{host_fn, plugin_fn, FnResult, Json, json, Error};
+use extism_pdk::{host_fn, plugin_fn, FnResult, Json, Error};
+use npm_registry_api::{decode_sri, fetch_package_manifest};
 use proto_pdk::*;
-use serde::Deserialize;
 use starbase_utils::fs;
 use std::collections::HashMap;
 
-const GITHUB_REPO: &str = "openai/codex";
+const GITHUB_REPO_URL: &str = "https://github.com/openai/codex";
+// Platform builds are published to npm as `@openai/codex@{version}-{platform}`.
+// Using the registry avoids GitHub's unauthenticated API rate limit and always
+// provides an integrity hash for the tarball.
+const NPM_REGISTRY_URL: &str = "https://registry.npmjs.org/@openai/codex";
 
 #[host_fn]
 extern "ExtismHost" {
     fn exec_command(input: Json<ExecCommandInput>) -> Json<ExecCommandOutput>;
-}
-
-#[derive(Deserialize)]
-struct GithubRelease {
-    #[serde(default)]
-    assets: Vec<GithubAsset>,
-}
-
-#[derive(Deserialize)]
-struct GithubAsset {
-    name: String,
-    digest: Option<String>,
-}
-
-#[derive(Deserialize)]
-struct LatestRelease {
-    tag_name: String,
 }
 
 fn npm_platform_str(env: &HostEnvironment) -> AnyResult<String> {
@@ -82,7 +69,7 @@ pub fn register_tool(_: ()) -> FnResult<Json<RegisterToolOutput>> {
 
 #[plugin_fn]
 pub fn load_versions(Json(_): Json<LoadVersionsInput>) -> FnResult<Json<LoadVersionsOutput>> {
-    let tags = load_git_tags("https://github.com/openai/codex")?;
+    let tags = load_git_tags(GITHUB_REPO_URL)?;
 
     let mut output = LoadVersionsOutput::default();
     for tag in &tags {
@@ -94,10 +81,8 @@ pub fn load_versions(Json(_): Json<LoadVersionsInput>) -> FnResult<Json<LoadVers
         }
     }
 
-    let latest: LatestRelease = json::from_str(&fetch_text(format!(
-        "https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
-    ))?)?;
-    output.latest = UnresolvedVersionSpec::parse(normalize_tag(&latest.tag_name)).ok();
+    let latest = fetch_package_manifest(NPM_REGISTRY_URL, "latest")?;
+    output.latest = Some(UnresolvedVersionSpec::parse(&latest.version)?);
 
     Ok(Json(output))
 }
@@ -117,28 +102,16 @@ pub fn download_prebuilt(
         ],
     )?;
 
-    let version_str = input.context.version.to_string();
     let platform = npm_platform_str(&env)?;
-    let asset_name = format!("codex-npm-{platform}-{version_str}.tgz");
-    let download_url = format!(
-        "https://github.com/{GITHUB_REPO}/releases/download/rust-v{version_str}/{asset_name}"
-    );
-
-    let release: GithubRelease = json::from_str(&fetch_text(format!(
-        "https://api.github.com/repos/{GITHUB_REPO}/releases/tags/rust-v{version_str}"
-    ))?)?;
-    let checksum = release
-        .assets
-        .iter()
-        .find(|a| a.name == asset_name)
-        .and_then(|a| a.digest.as_deref())
-        .and_then(|d| d.strip_prefix("sha256:"))
-        .map(|hex| Checksum::sha256(hex.to_string()));
+    let manifest = fetch_package_manifest(
+        NPM_REGISTRY_URL,
+        format!("{}-{platform}", input.context.version),
+    )?;
 
     Ok(Json(DownloadPrebuiltOutput {
         archive_prefix: Some("package".to_string()),
-        checksum,
-        download_url,
+        checksum: Some(Checksum::sha512(decode_sri(manifest.dist.integrity)?)),
+        download_url: manifest.dist.tarball,
         ..DownloadPrebuiltOutput::default()
     }))
 }
