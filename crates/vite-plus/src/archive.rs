@@ -23,7 +23,8 @@ pub fn decompress_tarball(input_file: &VirtualPath, output_dir: &VirtualPath) ->
     let mut args = vec![
         "xzvf".to_string(),
         input_file_path,
-        format!("-C {output_dir_path}"),
+        "-C".to_string(),
+        output_dir_path,
         "--strip-components=1".to_string()
     ];
     if variant == TarVariant::GNU && is_windows { args.push("--force-local".to_string()) }
