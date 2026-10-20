@@ -62,7 +62,8 @@ jobs:
               repo: context.repo.repo,
               per_page: 100,
             })) {
-              target = releases.find(r => !r.draft && regex.test(r.tag_name));
+              // Skip the release of the current tag, which exists when the workflow is re-run.
+              target = releases.find(r => !r.draft && r.tag_name !== process.env.GITHUB_REF_NAME && regex.test(r.tag_name));
               if (target) break;
             }
 
@@ -95,3 +96,4 @@ jobs:
           generateReleaseNotes: true
           generateReleaseNotesPreviousTag: ${{ steps.previous-tag.outputs.tag_name }}
           skipIfReleaseExists: false
+          allowUpdates: true
