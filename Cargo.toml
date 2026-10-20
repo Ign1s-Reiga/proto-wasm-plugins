@@ -4,8 +4,8 @@ members = ["crates/*"]
 
 [workspace.dependencies]
 extism-pdk = "1.4.1"
-proto_pdk = "0.32"
-proto_pdk_test_utils = "0.45"
+proto_pdk = "0.36"
+proto_pdk_test_utils = "0.51"
 serde = { version = "1.0.228", features = ["derive"] }
 starbase_utils = "0.13"
 base64 = "0.22"

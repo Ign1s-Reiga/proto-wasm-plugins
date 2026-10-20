@@ -165,10 +165,12 @@ pub fn unpack_archive(Json(input): Json<UnpackArchiveInput>) -> FnResult<()> {
     let target = rust_target_str(&env)?;
 
     let archive = input.input_file
-        .real_path_string()
-        .ok_or_else(|| Error::msg("Cannot resolve archive path"))?;
+        .to_real_path()?
+        .ok_or_else(|| Error::msg("Cannot resolve archive path"))?
+        .to_string_lossy()
+        .to_string();
     let out = input.output_dir
-        .real_path()
+        .to_real_path()?
         .ok_or_else(|| Error::msg("Cannot resolve output dir"))?
         .to_string_lossy()
         .to_string();
