@@ -7,8 +7,9 @@ use std::collections::HashMap;
 
 const GITHUB_REPO: &str = "openai/codex";
 // Platform builds are published to npm as `@openai/codex@{version}-{platform}`.
-// Using the registry avoids GitHub's unauthenticated API rate limit and always
-// provides an integrity hash for the tarball.
+// The registry is tried first since it always provides an integrity hash and
+// isn't subject to GitHub's API rate limit. GitHub release assets are only
+// used for the few versions missing from npm (see `github_release_asset`).
 const NPM_REGISTRY_URL: &str = "https://registry.npmjs.org/@openai/codex";
 
 #[host_fn]
