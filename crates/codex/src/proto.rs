@@ -1,4 +1,4 @@
-use extism_pdk::{host_fn, plugin_fn, FnResult, Json, Error};
+use extism_pdk::{host_fn, json, plugin_fn, FnResult, Json, Error};
 use npm_registry_api::{decode_sri, fetch_package_manifest, find_package_manifest};
 use proto_pdk::*;
 use serde::Deserialize;
@@ -11,6 +11,7 @@ const GITHUB_REPO: &str = "openai/codex";
 // isn't subject to GitHub's API rate limit. GitHub release assets are only
 // used for the few versions missing from npm (see `github_release_asset`).
 const NPM_REGISTRY_URL: &str = "https://registry.npmjs.org/@openai/codex";
+const PACKAGE_MANIFEST: &str = "codex-package.json";
 
 #[host_fn]
 extern "ExtismHost" {
@@ -28,6 +29,11 @@ struct GithubAsset {
     name: String,
     browser_download_url: String,
     digest: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct CodexPackageManifest {
+    entrypoint: String,
 }
 
 fn npm_platform_str(env: &HostEnvironment) -> AnyResult<String> {
@@ -62,6 +68,11 @@ fn rust_target_str(env: &HostEnvironment) -> AnyResult<String> {
         HostOS::Linux => format!("{arch_str}-unknown-linux-musl"),
         _ => return Err(Error::msg("Unsupported OS for Codex")),
     })
+}
+
+// Directory of the platform package within the tool directory.
+fn package_dir(env: &HostEnvironment) -> AnyResult<String> {
+    Ok(format!("vendor/{}", rust_target_str(env)?))
 }
 
 fn normalize_tag(tag: &str) -> &str {
@@ -168,12 +179,24 @@ fn github_release_asset(version: &VersionSpec, platform: &str) -> AnyResult<(Str
     Ok((asset.browser_download_url, Checksum::sha256(digest.to_string())))
 }
 
-// The tarball has the structure:
+// Since 0.133.0 the tarball contains a complete package described by
+// codex-package.json:
+//   package/vendor/{target}/codex-package.json
+//   package/vendor/{target}/bin/codex[.exe]
+//   package/vendor/{target}/bin/codex-code-mode-host[.exe]
+//   package/vendor/{target}/codex-path/rg[.exe]
+//   package/vendor/{target}/codex-resources/...
+//
+// Codex locates its helpers through that manifest and refuses to start its
+// app-server daemon unless the package is intact, so it's kept as-is and
+// locate_executables points at the manifest's entrypoint.
+//
+// Older tarballs have the structure:
 //   package/vendor/{target}/codex/codex[.exe]
 //   package/vendor/{target}/path/rg[.exe]
 //   package/vendor/{target}/codex-resources/bwrap  (Linux only)
 //
-// The codex binary expects its resources adjacent to itself:
+// and the codex binary expects its resources adjacent to itself:
 //   codex[.exe]
 //   codex-resources/rg[.exe]
 //   codex-resources/bwrap  (Linux)
@@ -187,7 +210,7 @@ fn github_release_asset(version: &VersionSpec, platform: &str) -> AnyResult<(Str
 #[plugin_fn]
 pub fn unpack_archive(Json(input): Json<UnpackArchiveInput>) -> FnResult<()> {
     let env = get_host_environment()?;
-    let target = rust_target_str(&env)?;
+    let vendor = input.output_dir.join(package_dir(&env)?);
 
     let archive = input.input_file
         .to_real_path()?
@@ -223,8 +246,11 @@ pub fn unpack_archive(Json(input): Json<UnpackArchiveInput>) -> FnResult<()> {
 
     exec_streamed("tar", args)?;
 
+    if vendor.join(PACKAGE_MANIFEST).exists() {
+        return Ok(());
+    }
+
     // Restructure from vendor/{target}/ to the flat layout codex expects.
-    let vendor = input.output_dir.join(format!("vendor/{target}"));
     let resources = input.output_dir.join("codex-resources");
     fs::create_dir_all(&resources)?;
 
@@ -278,16 +304,27 @@ pub fn unpack_archive(Json(input): Json<UnpackArchiveInput>) -> FnResult<()> {
 
 #[plugin_fn]
 pub fn locate_executables(
-    Json(_): Json<LocateExecutablesInput>,
+    Json(input): Json<LocateExecutablesInput>,
 ) -> FnResult<Json<LocateExecutablesOutput>> {
     let env = get_host_environment()?;
-    // post_install moves the binary to the root of the tool directory
-    let bin_name = if env.os.is_windows() { "codex.exe" } else { "codex" };
+    let package_dir = package_dir(&env)?;
+    let manifest_path = input.install_dir.join(&package_dir).join(PACKAGE_MANIFEST);
+
+    let exe_path = if manifest_path.exists() {
+        let manifest: CodexPackageManifest = json::from_str(&fs::read_file(&manifest_path)?)?;
+        format!("{package_dir}/{}", manifest.entrypoint)
+    } else if env.os.is_windows() {
+        // unpack_archive moves the binary of older releases to the root of
+        // the tool directory
+        "codex.exe".to_string()
+    } else {
+        "codex".to_string()
+    };
 
     Ok(Json(LocateExecutablesOutput {
         exes: HashMap::from_iter([(
             "codex".to_string(),
-            ExecutableConfig::new_primary(bin_name),
+            ExecutableConfig::new_primary(exe_path),
         )]),
         ..LocateExecutablesOutput::default()
     }))
