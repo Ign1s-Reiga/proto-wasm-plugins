@@ -18,7 +18,7 @@ pub fn register_tool(_: ()) -> FnResult<Json<RegisterToolOutput>> {
         default_version: Some(UnresolvedVersionSpec::parse("latest")?),
         name: "Vite+".to_string(),
         type_of: PluginType::CommandLine,
-        minimum_proto_version: Some(Version::new(0, 50, 0)),
+        minimum_proto_version: Some(Version::new(0, 60, 0)),
         plugin_version: Version::parse(env!("CARGO_PKG_VERSION")).ok(),
         self_upgrade_commands: vec!["vp".to_string(), "upgrade".to_string()],
         ..RegisterToolOutput::default()
