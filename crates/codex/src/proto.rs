@@ -1,5 +1,5 @@
 use extism_pdk::{host_fn, plugin_fn, FnResult, Json, Error};
-use npm_registry_api::{decode_sri, fetch_package_manifest};
+use npm_registry_api::{decode_sri, fetch_package_manifest, find_package_manifest};
 use proto_pdk::*;
 use serde::Deserialize;
 use starbase_utils::fs;
@@ -119,16 +119,14 @@ pub fn download_prebuilt(
     let version = &input.context.version;
     let platform = npm_platform_str(&env)?;
 
-    let (download_url, checksum) = match fetch_package_manifest(NPM_REGISTRY_URL, format!("{version}-{platform}")) {
-        Ok(manifest) => (
+    let (download_url, checksum) = match find_package_manifest(NPM_REGISTRY_URL, format!("{version}-{platform}"))? {
+        Some(manifest) => (
             manifest.dist.tarball,
             Checksum::sha512(decode_sri(manifest.dist.integrity)?),
         ),
-        Err(npm_error) => github_release_asset(version, &platform).map_err(|github_error| {
+        None => github_release_asset(version, &platform).map_err(|e| {
             Error::msg(format!(
-                "No Codex {version} build found for {platform}.
-npm: {npm_error}
-GitHub: {github_error}"
+                "Codex {version} for {platform} isn't published to npm, and the GitHub release fallback failed: {e}"
             ))
         })?,
     };
