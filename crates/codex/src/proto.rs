@@ -119,14 +119,12 @@ pub fn download_prebuilt(
     let version = &input.context.version;
     let platform = npm_platform_str(&env)?;
 
-    let output = match fetch_package_manifest(NPM_REGISTRY_URL, format!("{version}-{platform}")) {
-        Ok(manifest) => DownloadPrebuiltOutput {
-            archive_prefix: Some("package".to_string()),
-            checksum: Some(Checksum::sha512(decode_sri(manifest.dist.integrity)?)),
-            download_url: manifest.dist.tarball,
-            ..DownloadPrebuiltOutput::default()
-        },
-        Err(npm_error) => github_release_prebuilt(version, &platform).map_err(|github_error| {
+    let (download_url, checksum) = match fetch_package_manifest(NPM_REGISTRY_URL, format!("{version}-{platform}")) {
+        Ok(manifest) => (
+            manifest.dist.tarball,
+            Checksum::sha512(decode_sri(manifest.dist.integrity)?),
+        ),
+        Err(npm_error) => github_release_asset(version, &platform).map_err(|github_error| {
             Error::msg(format!(
                 "No Codex {version} build found for {platform}.
 npm: {npm_error}
@@ -135,13 +133,19 @@ GitHub: {github_error}"
         })?,
     };
 
-    Ok(Json(output))
+    // Both npm and GitHub tarballs wrap their contents in `package/`.
+    Ok(Json(DownloadPrebuiltOutput {
+        archive_prefix: Some("package".to_string()),
+        checksum: Some(checksum),
+        download_url,
+        ..DownloadPrebuiltOutput::default()
+    }))
 }
 
 // A few releases (e.g. 0.102.0) were only published as GitHub release assets,
 // not to npm. The GitHub API is only queried for those, so the unauthenticated
 // rate limit isn't hit in normal use.
-fn github_release_prebuilt(version: &VersionSpec, platform: &str) -> AnyResult<DownloadPrebuiltOutput> {
+fn github_release_asset(version: &VersionSpec, platform: &str) -> AnyResult<(String, Checksum)> {
     let asset_name = format!("codex-npm-{platform}-{version}.tgz");
     let release: GithubRelease = fetch_json(format!(
         "https://api.github.com/repos/{GITHUB_REPO}/releases/tags/rust-v{version}"
@@ -157,12 +161,7 @@ fn github_release_prebuilt(version: &VersionSpec, platform: &str) -> AnyResult<D
         .and_then(|d| d.strip_prefix("sha256:"))
         .ok_or_else(|| Error::msg(format!("Asset {asset_name} has no sha256 digest")))?;
 
-    Ok(DownloadPrebuiltOutput {
-        archive_prefix: Some("package".to_string()),
-        checksum: Some(Checksum::sha256(digest.to_string())),
-        download_url: asset.browser_download_url,
-        ..DownloadPrebuiltOutput::default()
-    })
+    Ok((asset.browser_download_url, Checksum::sha256(digest.to_string())))
 }
 
 // The tarball has the structure:
