@@ -1,10 +1,11 @@
 use extism_pdk::{host_fn, plugin_fn, FnResult, Json, Error};
 use npm_registry_api::{decode_sri, fetch_package_manifest};
 use proto_pdk::*;
+use serde::Deserialize;
 use starbase_utils::fs;
 use std::collections::HashMap;
 
-const GITHUB_REPO_URL: &str = "https://github.com/openai/codex";
+const GITHUB_REPO: &str = "openai/codex";
 // Platform builds are published to npm as `@openai/codex@{version}-{platform}`.
 // Using the registry avoids GitHub's unauthenticated API rate limit and always
 // provides an integrity hash for the tarball.
@@ -13,6 +14,19 @@ const NPM_REGISTRY_URL: &str = "https://registry.npmjs.org/@openai/codex";
 #[host_fn]
 extern "ExtismHost" {
     fn exec_command(input: Json<ExecCommandInput>) -> Json<ExecCommandOutput>;
+}
+
+#[derive(Deserialize)]
+struct GithubRelease {
+    #[serde(default)]
+    assets: Vec<GithubAsset>,
+}
+
+#[derive(Deserialize)]
+struct GithubAsset {
+    name: String,
+    browser_download_url: String,
+    digest: Option<String>,
 }
 
 fn npm_platform_str(env: &HostEnvironment) -> AnyResult<String> {
@@ -69,7 +83,7 @@ pub fn register_tool(_: ()) -> FnResult<Json<RegisterToolOutput>> {
 
 #[plugin_fn]
 pub fn load_versions(Json(_): Json<LoadVersionsInput>) -> FnResult<Json<LoadVersionsOutput>> {
-    let tags = load_git_tags(GITHUB_REPO_URL)?;
+    let tags = load_git_tags(format!("https://github.com/{GITHUB_REPO}"))?;
 
     let mut output = LoadVersionsOutput::default();
     for tag in &tags {
@@ -102,18 +116,53 @@ pub fn download_prebuilt(
         ],
     )?;
 
+    let version = &input.context.version;
     let platform = npm_platform_str(&env)?;
-    let manifest = fetch_package_manifest(
-        NPM_REGISTRY_URL,
-        format!("{}-{platform}", input.context.version),
-    )?;
 
-    Ok(Json(DownloadPrebuiltOutput {
+    let output = match fetch_package_manifest(NPM_REGISTRY_URL, format!("{version}-{platform}")) {
+        Ok(manifest) => DownloadPrebuiltOutput {
+            archive_prefix: Some("package".to_string()),
+            checksum: Some(Checksum::sha512(decode_sri(manifest.dist.integrity)?)),
+            download_url: manifest.dist.tarball,
+            ..DownloadPrebuiltOutput::default()
+        },
+        Err(npm_error) => github_release_prebuilt(version, &platform).map_err(|github_error| {
+            Error::msg(format!(
+                "No Codex {version} build found for {platform}.
+npm: {npm_error}
+GitHub: {github_error}"
+            ))
+        })?,
+    };
+
+    Ok(Json(output))
+}
+
+// A few releases (e.g. 0.102.0) were only published as GitHub release assets,
+// not to npm. The GitHub API is only queried for those, so the unauthenticated
+// rate limit isn't hit in normal use.
+fn github_release_prebuilt(version: &VersionSpec, platform: &str) -> AnyResult<DownloadPrebuiltOutput> {
+    let asset_name = format!("codex-npm-{platform}-{version}.tgz");
+    let release: GithubRelease = fetch_json(format!(
+        "https://api.github.com/repos/{GITHUB_REPO}/releases/tags/rust-v{version}"
+    ))?;
+    let asset = release
+        .assets
+        .into_iter()
+        .find(|a| a.name == asset_name)
+        .ok_or_else(|| Error::msg(format!("Release rust-v{version} has no {asset_name} asset")))?;
+    let digest = asset
+        .digest
+        .as_deref()
+        .and_then(|d| d.strip_prefix("sha256:"))
+        .ok_or_else(|| Error::msg(format!("Asset {asset_name} has no sha256 digest")))?;
+
+    Ok(DownloadPrebuiltOutput {
         archive_prefix: Some("package".to_string()),
-        checksum: Some(Checksum::sha512(decode_sri(manifest.dist.integrity)?)),
-        download_url: manifest.dist.tarball,
+        checksum: Some(Checksum::sha256(digest.to_string())),
+        download_url: asset.browser_download_url,
         ..DownloadPrebuiltOutput::default()
-    }))
+    })
 }
 
 // The tarball has the structure:

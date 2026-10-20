@@ -650,6 +650,7 @@ dependencies = [
  "npm-registry-api",
  "proto_pdk",
  "proto_pdk_test_utils",
+ "serde",
  "starbase_utils 0.13.2",
  "tokio",
 ]
