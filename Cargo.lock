@@ -7276,7 +7276,7 @@ dependencies = [
 
 [[package]]
 name = "wrangler_tool"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "extism-pdk",
  "npm-registry-api",
