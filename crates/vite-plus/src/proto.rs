@@ -38,7 +38,7 @@ pub fn download_prebuilt(Json(input): Json<DownloadPrebuiltInput>) -> FnResult<J
         ]
     )?;
 
-    let manifest = fetch_package_manifest(get_package_url(&env), &input.context.version)?;
+    let manifest = fetch_package_manifest(get_package_url(&env)?, &input.context.version)?;
 
     Ok(Json(DownloadPrebuiltOutput {
         archive_prefix: Some("package".to_string()),
@@ -85,7 +85,7 @@ pub fn locate_executables(Json(input): Json<LocateExecutablesInput>) -> FnResult
 pub fn load_versions(Json(_): Json<LoadVersionsInput>) -> FnResult<Json<LoadVersionsOutput>> {
     let mut output = LoadVersionsOutput::default();
     let env = get_host_environment()?;
-    let rsp: NpmPackageSummary = fetch_npm_registry(get_package_url(&env))?;
+    let rsp: NpmPackageSummary = fetch_npm_registry(get_package_url(&env)?)?;
 
     for item in rsp.versions.values() {
         output.versions.push(VersionSpec::parse(&item.version)?);
@@ -102,17 +102,17 @@ pub fn load_versions(Json(_): Json<LoadVersionsInput>) -> FnResult<Json<LoadVers
     Ok(Json(output))
 }
 
-fn get_package_url(env: &HostEnvironment) -> String {
+fn get_package_url(env: &HostEnvironment) -> AnyResult<String> {
     let os = match env.os {
         HostOS::Windows => "win32",
         HostOS::MacOS => "darwin",
         HostOS::Linux => "linux",
-        _ => unreachable!(),
+        _ => return Err(Error::msg(format!("Unsupported OS for Vite+: {}", env.os))),
     };
     let arch = match env.arch {
         HostArch::X64 => "x64",
         HostArch::Arm64 => "arm64",
-        _ => unreachable!(),
+        _ => return Err(Error::msg(format!("Unsupported arch for Vite+: {}", env.arch))),
     };
     let crt = match env.os {
         HostOS::Windows => Some("msvc"),
@@ -125,5 +125,5 @@ fn get_package_url(env: &HostEnvironment) -> String {
     } else {
         format!("{os}-{arch}")
     };
-    format!("https://registry.npmjs.org/@voidzero-dev/vite-plus-cli-{platform_suffix}")
+    Ok(format!("https://registry.npmjs.org/@voidzero-dev/vite-plus-cli-{platform_suffix}"))
 }
