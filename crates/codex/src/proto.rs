@@ -1,5 +1,5 @@
 use extism_pdk::{host_fn, plugin_fn, FnResult, Json, Error};
-use npm_registry_api::{decode_sri, fetch_package_manifest};
+use npm_registry_api::{decode_sri, fetch_package_manifest, find_package_manifest};
 use proto_pdk::*;
 use serde::Deserialize;
 use starbase_utils::fs;
@@ -7,8 +7,9 @@ use std::collections::HashMap;
 
 const GITHUB_REPO: &str = "openai/codex";
 // Platform builds are published to npm as `@openai/codex@{version}-{platform}`.
-// Using the registry avoids GitHub's unauthenticated API rate limit and always
-// provides an integrity hash for the tarball.
+// The registry is tried first since it always provides an integrity hash and
+// isn't subject to GitHub's API rate limit. GitHub release assets are only
+// used for the few versions missing from npm (see `github_release_asset`).
 const NPM_REGISTRY_URL: &str = "https://registry.npmjs.org/@openai/codex";
 
 #[host_fn]
@@ -119,33 +120,40 @@ pub fn download_prebuilt(
     let version = &input.context.version;
     let platform = npm_platform_str(&env)?;
 
-    let output = match fetch_package_manifest(NPM_REGISTRY_URL, format!("{version}-{platform}")) {
-        Ok(manifest) => DownloadPrebuiltOutput {
-            archive_prefix: Some("package".to_string()),
-            checksum: Some(Checksum::sha512(decode_sri(manifest.dist.integrity)?)),
-            download_url: manifest.dist.tarball,
-            ..DownloadPrebuiltOutput::default()
-        },
-        Err(npm_error) => github_release_prebuilt(version, &platform).map_err(|github_error| {
+    let (download_url, checksum) = match find_package_manifest(NPM_REGISTRY_URL, format!("{version}-{platform}"))? {
+        Some(manifest) => (
+            manifest.dist.tarball,
+            Checksum::sha512(decode_sri(manifest.dist.integrity)?),
+        ),
+        None => github_release_asset(version, &platform).map_err(|e| {
             Error::msg(format!(
-                "No Codex {version} build found for {platform}.
-npm: {npm_error}
-GitHub: {github_error}"
+                "Codex {version} for {platform} isn't published to npm, and the GitHub release fallback failed: {e}"
             ))
         })?,
     };
 
-    Ok(Json(output))
+    // Both npm and GitHub tarballs wrap their contents in `package/`.
+    Ok(Json(DownloadPrebuiltOutput {
+        archive_prefix: Some("package".to_string()),
+        checksum: Some(checksum),
+        download_url,
+        ..DownloadPrebuiltOutput::default()
+    }))
 }
 
 // A few releases (e.g. 0.102.0) were only published as GitHub release assets,
 // not to npm. The GitHub API is only queried for those, so the unauthenticated
-// rate limit isn't hit in normal use.
-fn github_release_prebuilt(version: &VersionSpec, platform: &str) -> AnyResult<DownloadPrebuiltOutput> {
+// rate limit isn't hit in normal use. GITHUB_TOKEN is sent when set, since
+// proto doesn't add it to plugin requests on its own.
+fn github_release_asset(version: &VersionSpec, platform: &str) -> AnyResult<(String, Checksum)> {
     let asset_name = format!("codex-npm-{platform}-{version}.tgz");
-    let release: GithubRelease = fetch_json(format!(
+    let mut request = SendRequestInput::new(format!(
         "https://api.github.com/repos/{GITHUB_REPO}/releases/tags/rust-v{version}"
-    ))?;
+    ));
+    if let Some(token) = get_host_env_var("GITHUB_TOKEN")? {
+        request.headers.insert("Authorization".to_string(), format!("Bearer {token}"));
+    }
+    let release: GithubRelease = fetch(request)?.json()?;
     let asset = release
         .assets
         .into_iter()
@@ -157,12 +165,7 @@ fn github_release_prebuilt(version: &VersionSpec, platform: &str) -> AnyResult<D
         .and_then(|d| d.strip_prefix("sha256:"))
         .ok_or_else(|| Error::msg(format!("Asset {asset_name} has no sha256 digest")))?;
 
-    Ok(DownloadPrebuiltOutput {
-        archive_prefix: Some("package".to_string()),
-        checksum: Some(Checksum::sha256(digest.to_string())),
-        download_url: asset.browser_download_url,
-        ..DownloadPrebuiltOutput::default()
-    })
+    Ok((asset.browser_download_url, Checksum::sha256(digest.to_string())))
 }
 
 // The tarball has the structure:
