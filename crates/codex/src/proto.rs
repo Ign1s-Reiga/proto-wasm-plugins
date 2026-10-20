@@ -142,12 +142,17 @@ pub fn download_prebuilt(
 
 // A few releases (e.g. 0.102.0) were only published as GitHub release assets,
 // not to npm. The GitHub API is only queried for those, so the unauthenticated
-// rate limit isn't hit in normal use.
+// rate limit isn't hit in normal use. GITHUB_TOKEN is sent when set, since
+// proto doesn't add it to plugin requests on its own.
 fn github_release_asset(version: &VersionSpec, platform: &str) -> AnyResult<(String, Checksum)> {
     let asset_name = format!("codex-npm-{platform}-{version}.tgz");
-    let release: GithubRelease = fetch_json(format!(
+    let mut request = SendRequestInput::new(format!(
         "https://api.github.com/repos/{GITHUB_REPO}/releases/tags/rust-v{version}"
-    ))?;
+    ));
+    if let Some(token) = get_host_env_var("GITHUB_TOKEN")? {
+        request.headers.insert("Authorization".to_string(), format!("Bearer {token}"));
+    }
+    let release: GithubRelease = fetch(request)?.json()?;
     let asset = release
         .assets
         .into_iter()
