@@ -11,7 +11,10 @@ pub fn fetch_npm_registry<S: AsRef<str>>(url: S) -> AnyResult<NpmPackageSummary>
 }
 
 pub fn fetch_package_manifest<S: AsRef<str>>(url: S, version: &VersionSpec) -> AnyResult<NpmPackageManifest> {
-    Ok(json::from_str::<NpmPackageManifest>(&fetch_text(format!("{}/{}", url.as_ref(), version.to_string()))?)?)
+    let text = fetch_text(format!("{}/{}", url.as_ref(), version))
+        .map_err(|e| Error::msg(format!("Failed to fetch package manifest for version {version}: {e}")))?;
+    json::from_str::<NpmPackageManifest>(&text)
+        .map_err(|e| Error::msg(format!("Invalid package manifest for version {version}: {e}")))
 }
 
 pub fn decode_sri(sri: String) -> AnyResult<String> {
