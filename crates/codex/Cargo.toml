@@ -11,6 +11,7 @@ crate-type = ["cdylib"]
 [dependencies]
 extism-pdk.workspace = true
 proto_pdk.workspace = true
+serde.workspace = true
 starbase_utils.workspace = true
 npm-registry-api.workspace = true
 
