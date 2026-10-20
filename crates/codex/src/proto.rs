@@ -74,7 +74,7 @@ pub fn register_tool(_: ()) -> FnResult<Json<RegisterToolOutput>> {
         default_version: Some(UnresolvedVersionSpec::parse("latest")?),
         name: "Codex".to_string(),
         type_of: PluginType::CommandLine,
-        minimum_proto_version: Some(Version::new(0, 56, 0)),
+        minimum_proto_version: Some(Version::new(0, 60, 0)),
         plugin_version: Version::parse(env!("CARGO_PKG_VERSION")).ok(),
         ..RegisterToolOutput::default()
     }))
