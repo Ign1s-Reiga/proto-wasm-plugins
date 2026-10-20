@@ -70,7 +70,7 @@ pub fn locate_executables(Json(input): Json<LocateExecutablesInput>) -> FnResult
         primary: true,
         no_bin: true,
         shim_env_vars: Some(HashMap::from_iter([
-            ("VITE_PLUS_HOME".to_string(), input.install_dir.real_path_string().ok_or_else(|| Error::msg("Couldn't get real path"))?)
+            ("VITE_PLUS_HOME".to_string(), input.install_dir.to_real_path()?.map(|p| p.to_string_lossy().to_string()).ok_or_else(|| Error::msg("Couldn't get real path"))?)
         ])),
         ..ExecutableConfig::default()
     };

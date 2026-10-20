@@ -1,5 +1,5 @@
 use extism_pdk::Error;
-use proto_pdk::{exec_captured, exec_streamed, get_host_environment, AnyResult, VirtualPath};
+use proto_pdk::{exec_captured, exec_streamed, get_host_environment, AnyResult, VirtualPath, VirtualPathExt};
 use starbase_utils::fs;
 
 #[derive(PartialEq)]
@@ -9,9 +9,10 @@ enum TarVariant {
 }
 
 pub fn decompress_tarball(input_file: &VirtualPath, output_dir: &VirtualPath) -> AnyResult<()> {
-    let input_file_path = input_file.real_path_string()
+    let input_file_path = input_file.to_real_path()?
+        .map(|p| p.to_string_lossy().to_string())
         .ok_or_else(|| Error::msg("Couldn't get tgz path"))?;
-    let output_dir_path = output_dir.real_path()
+    let output_dir_path = output_dir.to_real_path()?
         .map(|p| p.to_string_lossy().to_string())
         .ok_or_else(|| Error::msg("Couldn't get output dir path"))?;
 

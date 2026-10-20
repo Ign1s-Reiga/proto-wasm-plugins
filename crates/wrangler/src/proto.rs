@@ -61,7 +61,7 @@ pub fn post_install(Json(input): Json<InstallHook>) -> FnResult<()> {
     // remove package.json before install packages
     fs::remove_file(input.context.tool_dir.join("package.json"))?;
     let tool_dir_real_path = input.context.tool_dir
-        .real_path()
+        .to_real_path()?
         .unwrap()
         .to_string_lossy()
         .to_string();
