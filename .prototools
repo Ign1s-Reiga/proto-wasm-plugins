@@ -4,3 +4,4 @@
 # wrangler-test = "file://./target/wasm32-wasip1/release/wrangler_tool.wasm"
 # vite-plus-test = "file://./target/wasm32-wasip1/release/vite_plus_tool.wasm"
 # codex-test = "file://./target/wasm32-wasip1/release/codex_tool.wasm"
+# claude-test = "file://./target/wasm32-wasip1/release/claude_tool.wasm"
