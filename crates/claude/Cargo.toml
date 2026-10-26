@@ -1,0 +1,19 @@
+[package]
+name = "claude_tool"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+extism-pdk.workspace = true
+proto_pdk.workspace = true
+serde.workspace = true
+npm-registry-api.workspace = true
+
+[dev-dependencies]
+proto_pdk_test_utils.workspace = true
+tokio = { version = "1", features = ["full"] }

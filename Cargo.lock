@@ -614,6 +614,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "claude_tool"
+version = "0.1.0"
+dependencies = [
+ "extism-pdk",
+ "npm-registry-api",
+ "proto_pdk",
+ "proto_pdk_test_utils",
+ "serde",
+ "tokio",
+]
+
+[[package]]
 name = "cmac"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
