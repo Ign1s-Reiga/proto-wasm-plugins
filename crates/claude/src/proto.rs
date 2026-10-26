@@ -128,15 +128,14 @@ fn native_release(
     version: &VersionSpec,
     platform: &str,
 ) -> AnyResult<DownloadPrebuiltOutput> {
-    let manifest: NativeManifest = fetch_json(format!("{DOWNLOAD_BASE_URL}/{version}/manifest.json"))?;
-    let checksum = manifest
+    let mut manifest: NativeManifest = fetch_json(format!("{DOWNLOAD_BASE_URL}/{version}/manifest.json"))?;
+    let build = manifest
         .platforms
-        .get(platform)
-        .map(|p| p.checksum.clone())
+        .remove(platform)
         .ok_or_else(|| Error::msg(format!("Release {version} has no build for {platform}")))?;
 
     Ok(DownloadPrebuiltOutput {
-        checksum: Some(Checksum::sha256(checksum)),
+        checksum: Some(Checksum::sha256(build.checksum)),
         download_url: format!(
             "{DOWNLOAD_BASE_URL}/{version}/{platform}/{}",
             env.os.get_exe_name("claude")
